@@ -7,7 +7,7 @@ Created on Tue Jun  3 18:58:07 2025
 
 Dash Air Quality
 """
-from dash import Dash, html, dcc, callback, Output, Input, State, ctx
+from dash import Dash, html, dcc, callback, Output, Input, State, ctx, no_update
 from plotly.graph_objects import Figure
 import plotly.express as px
 import pandas as pd
@@ -113,15 +113,26 @@ def update_detailed_graph(mainClick,detailHover,currentFig):
         detail_fig = px.bar(avg_data, x="name", y="data_value", title=f"Average Pollutant Levels for {selected_area}")
         detail_fig.update_layout(yaxis=dict(range=[min_value, max_value]))
    
-        #time graph! comparing levels over time
-        all_time = raw_data[(raw_data["geo_place_name"] == selected_area) && (raw_data["time_period"] != "Annual Average 2023")]
+       #time comparison graph (change in avg)
+        summer_2023 = AQ_df[(AQ_df["geo_place_name"] == selected_area) & (AQ_df["time_period"] == "Summer 2023")]
+        winter_22 = AQ_df[(AQ_df["geo_place_name"] == selected_area) & (AQ_df["time_period"] == "Winter 2022-23")]
+        summer_2023_avg = summer_2023.groupby("name", as_index=False)["data_value"].mean().rename(columns={"data_value":"summer_2023"}) #avg air pollutant level, summer '23
+        winter_22_avg = winter_22.groupby("name", as_index=False)["data_value"].mean().rename(columns={"data_value":"winter_22"})
         
-        time_fig = px.bar(all_time, x="time_period", y="data_value", color="name",
-                           title=f"{selected_area} - Pollutant Trends Over Time")
+        diff_df = pd.merge(winter_22_avg, summer_2023_avg, on="name") #merge the summer and winter dfs
+        diff_df["change"] = diff_df["summer_2023"] - diff_df["winter_22"]
+
+        
+        time_fig = px.bar(diff_df, x="name", y="change", color="name", title=f'Change in Pollutant Levels for {selected_area} <br><span style="font-size:13px;color:gray">Winter 2022 to Summer 2023</span>')
+        time_fig.add_annotation(xref="x domain", yref="y", 
+                                y=-30,text="Ozone excluded due to no data collected from Winter 2022.",
+                                showarrow=False, bordercolor="#c7c7c7", borderwidth=2, borderpad=4,
+                                bgcolor="#D3D3D3",)
     
         # Ensure consistent y-axis range if needed
         detail_fig.update_layout(yaxis=dict(range=[AQ_df["data_value"].min(), AQ_df["data_value"].max()]))
-        time_fig.update_layout(yaxis=dict(range=[AQ_df["data_value"].min(), AQ_df["data_value"].max()]))
+        time_fig.update_layout(yaxis=dict(range=[-AQ_df["data_value"].max(), AQ_df["data_value"].max()]),
+                               font=dict(size=12))
 
         #now return Detail Fig and Time Fig
         return detail_fig,time_fig
@@ -130,7 +141,7 @@ def update_detailed_graph(mainClick,detailHover,currentFig):
     elif trigger == 'pollutant-bar-graph':
        if detailHover is None:
            # No hover: return the unmodified current figure
-           return currentFig or empty_fig
+           return currentFig or empty_fig, no_update
 
        # If hover exists, add horizontal lines
        pollutant_name = detailHover['points'][0]['x']
@@ -181,10 +192,10 @@ def update_detailed_graph(mainClick,detailHover,currentFig):
            yshift=10
        )
 
-       return fig
+       return fig,no_update
 
    # Default case
-    return currentFig or {}
+    return currentFig or empty_fig, no_update
 
 
 if __name__ == '__main__':
