@@ -61,7 +61,10 @@ min_pollutant, min_value = min(mins_and_maxes.items(), key=lambda x: x[1][1])
 
 #%% Dash dashboard
 
-app = Dash()
+
+app = Dash(__name__) #make callable WSGI instance
+server = app.server
+
 app.layout = html.Div([
         html.H1(children="Exploration of Air Quality in NYC",style={'textAlign': 'center'}),
         
